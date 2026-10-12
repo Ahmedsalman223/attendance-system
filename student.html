@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الحضور الطلابي الآمن</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 15px; text-align: center; background: #eef2f3; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; }
+        #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 15px; }
+        #status { margin-top: 15px; font-weight: bold; font-size: 1.1rem; line-height: 1.6; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h3>بوابة تسجيل الحضور</h3>
+    <input type="text" id="student_id" placeholder="أدخل رقمك الجامعي (مثلاً: 202401)">
+    <p style="font-size: 0.9rem; color: #555;">وجه الكاميرا نحو شاشة القاعة لقراءة الـ QR:</p>
+    <div id="reader"></div>
+    <div id="status"></div>
+</div>
+<script>
+function getDeviceFingerprint() {
+    const raw = navigator.userAgent + navigator.language + screen.width + "x" + screen.height;
+    let hash = 0;
+    for (let i = 0; i < raw.length; i++) {
+        hash = (hash << 5) - hash + raw.charCodeAt(i);
+        hash |= 0;
+    }
+    return "DEV_" + Math.abs(hash);
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+    const token = decodedText;
+    const studentId = document.getElementById('student_id').value.trim();
+    const statusDiv = document.getElementById('status');
+
+    if(!studentId) {
+        statusDiv.style.color = "red";
+        statusDiv.innerText = "⚠️ من فضلك اكتب رقمك الجامعي قبل مسح الكود!";
+        return;
+    }
+
+    html5QrCode.stop().catch(err => {});
+    statusDiv.style.color = "blue";
+    statusDiv.innerText = "⏳ جاري التحقق من الموقع الجغرافي (GPS) وبصمة الجهاز...";
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            const payload = {
+                student_id: studentId,
+                token: token,
+                lat: position.coords.latitude,
+                lon: position.coords.longitude,
+                device_fingerprint: getDeviceFingerprint()
+            };
+
+            try {
+                let res = await fetch('/api/submit-attendance', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                let result = await res.json();
+
+                if (res.ok) {
+                    statusDiv.style.color = "green";
+                    statusDiv.innerText = "✅ " + result.message;
+                } else {
+                    statusDiv.style.color = "red";
+                    statusDiv.innerText = "❌ " + result.message;
+                    setTimeout(startCamera, 3000);
+                }
+            } catch (err) {
+                statusDiv.style.color = "red";
+                statusDiv.innerText = "❌ حدث خطأ في الاتصال بالسيرفر!";
+                setTimeout(startCamera, 3000);
+            }
+        }, (error) => {
+            statusDiv.style.color = "red";
+            statusDiv.innerText = "❌ يجب السماح للمتصفح بالوصول للـ GPS لتسجيل الحضور!";
+            setTimeout(startCamera, 3000);
+        }, { enableHighAccuracy: true });
+    } else {
+        statusDiv.innerText = "متصفحك لا يدعم الـ GPS.";
+    }
+}
+
+let html5QrCode = new Html5Qrcode("reader");
+function startCamera() {
+    html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        onScanSuccess
+    ).catch(err => {
+        document.getElementById('status').innerText = "تعذر تشغيل الكاميرا. تأكد من إعطاء الصلاحية.";
+    });
+}
+startCamera();
+</script>
+</body>
+</html>

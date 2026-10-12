@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لوحة عرض الدكتور - نظام الحضور الآمن</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f0f3f4; padding-top: 60px; }
+        .box { background: white; display: inline-block; padding: 30px; border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+        #qrcode { margin-top: 20px; }
+        .timer { font-size: 1.1rem; color: #c0392b; margin-top: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>شاشة تسجيل الحضور (للدكتور)</h2>
+        <p>قم بتوجيه الكاميرا من هاتفك لمسح الـ QR الآمن:</p>
+        <div id="qrcode"></div>
+        <div class="timer">🔒 يتم تغيير الرمز تلقائياً لمنع أي تلاعب أو مشاركة للصور</div>
+    </div>
+    <script>
+        const qrContainer = document.getElementById("qrcode");
+        let qrcode = new QRCode(qrContainer, { width: 260, height: 260 });
+
+        async function updateQR() {
+            try {
+                let response = await fetch('/api/get-qr-token');
+                let data = await response.json();
+                qrcode.clear();
+                qrcode.makeCode(data.token);
+            } catch (e) {
+                console.log("خطأ في جلب الرمز");
+            }
+        }
+        updateQR();
+        setInterval(updateQR, 10000);
+    </script>
+</body>
+</html>
